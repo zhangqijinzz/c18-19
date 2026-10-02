@@ -21,6 +21,7 @@ export interface BrandDocument {
   tokens: BrandTokens
   theme: BrandTheme
   versions: SavedVersion[]
+  updatedAt?: Record<string, string>
 }
 
 export interface BrandMirrorSnapshot {
@@ -28,6 +29,7 @@ export interface BrandMirrorSnapshot {
   tokens: BrandTokens
   theme: BrandTheme
   versions: SavedVersion[]
+  updatedAt: Record<string, string>
   compareMode: boolean
   activeVersionId: string | null
   contrastRatio: number

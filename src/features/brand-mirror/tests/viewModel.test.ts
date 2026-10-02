@@ -69,4 +69,31 @@ describe('BrandMirrorViewModel', () => {
     expect(exporter.received).toContain('`primary`')
     expect(viewModel.getSnapshot().message).toContain('导出')
   })
+
+  it('records and persists which tokens were changed recently', () => {
+    const repository = new MemoryRepository()
+    const viewModel = new BrandMirrorViewModel(repository)
+    viewModel.initialize()
+    viewModel.updateColor('primary', '#123456')
+    viewModel.updateScale('typeScale', 0, 18)
+    const updatedAt = viewModel.getSnapshot().updatedAt
+    expect(updatedAt['color.primary']).toBeTruthy()
+    expect(updatedAt['type.1']).toBeTruthy()
+    expect(updatedAt['color.secondary']).toBeUndefined()
+    expect(repository.document?.updatedAt?.['type.1']).toBe(updatedAt['type.1'])
+
+    const restored = new BrandMirrorViewModel(repository)
+    restored.initialize()
+    expect(restored.getSnapshot().updatedAt['color.primary']).toBe(updatedAt['color.primary'])
+  })
+
+  it('marks every differing scale key when switching themes', () => {
+    const repository = new MemoryRepository()
+    const viewModel = new BrandMirrorViewModel(repository)
+    viewModel.initialize()
+    viewModel.selectTheme('editorial')
+    const updatedAt = viewModel.getSnapshot().updatedAt
+    expect(updatedAt['color.primary']).toBeTruthy()
+    expect(updatedAt['radius.1']).toBeTruthy()
+  })
 })

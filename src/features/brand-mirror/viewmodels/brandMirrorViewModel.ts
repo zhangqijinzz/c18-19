@@ -1,9 +1,10 @@
 import { clampTokenValues, cloneTokens, contrastRatio, normalizeColor, themeTokens, validateTokens } from '../domain/brandRules'
 import type { BrandRepository } from '../repositories/brandRepository'
 import type { BrandGuidelinesExporter } from '../services/exportService'
-import { INITIAL_TOKENS, type BrandDocument, type BrandMirrorSnapshot, type BrandTheme, type SavedVersion } from '../models/brandMirrorModels'
+import { INITIAL_TOKENS, type BrandDocument, type BrandMirrorSnapshot, type BrandTheme, type BrandTokens, type SavedVersion } from '../models/brandMirrorModels'
 
 type Listener = () => void
+export type UpdatedAtMap = Record<string, string>
 
 export class BrandMirrorViewModel {
   private snapshot: BrandMirrorSnapshot = this.makeSnapshot({ tokens: INITIAL_TOKENS, theme: 'studio', versions: [] })
@@ -68,7 +69,7 @@ export class BrandMirrorViewModel {
       createdAt: new Date().toISOString(),
     }
     const versions = [...this.snapshot.versions, nextVersion]
-    this.persist({ tokens: this.snapshot.tokens, theme: this.snapshot.theme, versions }, '版本已保存')
+    this.persist({ tokens: this.snapshot.tokens, theme: this.snapshot.theme, versions, updatedAt: this.snapshot.updatedAt }, '版本已保存')
   }
 
   toggleCompare(): void {
@@ -89,13 +90,15 @@ export class BrandMirrorViewModel {
 
   private update(partial: Partial<Pick<BrandDocument, 'tokens' | 'theme'>>, message: string): void {
     const tokens = partial.tokens ?? this.snapshot.tokens
-    this.snapshot = this.makeSnapshot({ tokens, theme: partial.theme ?? this.snapshot.theme, versions: this.snapshot.versions }, message, 'editing')
+    const changedKeys = collectChangedKeys(this.snapshot.tokens, tokens)
+    const updatedAt = changedKeys.length > 0 ? stampUpdatedAt(this.snapshot.updatedAt, changedKeys) : this.snapshot.updatedAt
+    this.snapshot = this.makeSnapshot({ tokens, theme: partial.theme ?? this.snapshot.theme, versions: this.snapshot.versions, updatedAt }, message, 'editing')
     this.persistCurrent()
   }
 
   private persistCurrent(): void {
     try {
-      this.repository.save({ version: 1, tokens: this.snapshot.tokens, theme: this.snapshot.theme, versions: this.snapshot.versions })
+      this.repository.save({ version: 1, tokens: this.snapshot.tokens, theme: this.snapshot.theme, versions: this.snapshot.versions, updatedAt: this.snapshot.updatedAt })
     } catch {
       this.snapshot = { ...this.snapshot, status: 'error', message: '本地保存失败，但当前编辑仍保留在页面中' }
     }
@@ -115,10 +118,32 @@ export class BrandMirrorViewModel {
   private makeSnapshot(document: Omit<BrandDocument, 'version'>, message = '', status: BrandMirrorSnapshot['status'] = 'ready'): BrandMirrorSnapshot {
     const ratio = contrastRatio(document.tokens.primary, document.tokens.secondary)
     const latestVersion = document.versions[document.versions.length - 1]
-    return { status, tokens: cloneTokens(document.tokens), theme: document.theme, versions: document.versions, compareMode: false, activeVersionId: latestVersion?.id ?? null, contrastRatio: ratio, contrastWarning: ratio < 3, message }
+    return { status, tokens: cloneTokens(document.tokens), theme: document.theme, versions: document.versions, updatedAt: { ...(document.updatedAt ?? {}) }, compareMode: false, activeVersionId: latestVersion?.id ?? null, contrastRatio: ratio, contrastWarning: ratio < 3, message }
   }
 
   private emit(): void {
     this.listeners.forEach((listener) => listener())
   }
+}
+
+const SCALE_FIELDS = ['radiusScale', 'spacingScale', 'typeScale'] as const
+
+export function collectChangedKeys(previous: BrandTokens, next: BrandTokens): string[] {
+  const keys: string[] = []
+  if (previous.primary !== next.primary) keys.push('color.primary')
+  if (previous.secondary !== next.secondary) keys.push('color.secondary')
+  SCALE_FIELDS.forEach((field) => {
+    next[field].forEach((value, index) => {
+      if (previous[field][index] !== value) keys.push(`${field.replace('Scale', '')}.${index + 1}`)
+    })
+  })
+  return keys
+}
+
+export function stampUpdatedAt(current: UpdatedAtMap, changedKeys: string[], now: string = new Date().toISOString()): UpdatedAtMap {
+  const next: UpdatedAtMap = { ...current }
+  changedKeys.forEach((key) => {
+    next[key] = now
+  })
+  return next
 }
