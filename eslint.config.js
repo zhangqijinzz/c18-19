@@ -22,5 +22,14 @@ export default [
       'no-console': ['warn', { allow: ['error'] }],
     },
   },
-  { files: ['**/*.test.{ts,tsx}'], rules: { '@typescript-eslint/no-unused-vars': 'off' } },
+  {
+    files: ['**/*.test.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        window: 'readonly', document: 'readonly', localStorage: 'readonly', Blob: 'readonly', URL: 'readonly',
+        Event: 'readonly', HTMLElement: 'readonly', HTMLDivElement: 'readonly', HTMLInputElement: 'readonly', HTMLButtonElement: 'readonly',
+      },
+    },
+    rules: { '@typescript-eslint/no-unused-vars': 'off', '@typescript-eslint/no-non-null-assertion': 'off' },
+  },
 ]
